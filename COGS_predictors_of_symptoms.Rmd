@@ -1120,7 +1120,7 @@ test_df_dim_std_c <- datawizard::standardise(x = filter(test_df_dim, clozapine_c
 
 ```
 
-# Medication and pharmacogenomic effects on cross-sectional symptom severity and cognitive ability in schizophrenia {.tabset}
+# Medication and pharmacogenomic effects on cross-sectional symptom severity and cognitive ability in schizophrenia. {.tabset}
 
 <br>
 **Siobhan K. Lock, Djenifer B. Kappel, Michael J. Owen, James T.R. Walters, Michael C. O'Donovan, <a href = "mailto: PardinasA@cardiff.ac.uk"> Antonio .F. Pardiñas, </a> and <a href = "mailto: LeggeSE8@cardiff.ac.uk"> Sophie E. Legge. </a>**
