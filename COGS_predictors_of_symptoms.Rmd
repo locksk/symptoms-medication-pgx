@@ -302,6 +302,9 @@ insertRow2 <- function(existingDF, newrow, r) {
 
 
 ```{r load packages, include=FALSE}
+# set working diretory
+setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/")
+
 # load required packages
 library(haven)
 library(tidyverse)
@@ -319,6 +322,9 @@ library(chlorpromazineR)
 library(sjPlot)
 library(thematic)
 library(lavaan)
+library(lavaanPlot)
+library(semptools)
+library(semPlot)
 library(flextable)
 library(gtsummary)
 library(shiny)
@@ -328,9 +334,6 @@ library(phenoconverter)
 ```
 
 ```{r load CardiffCOGS data}
-# set working directory
-setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/")
-
 # load in CardiffCOGS dataset
 pheno <- read_sav("Complete CardiffCogs 2022.sav")
 
@@ -382,9 +385,6 @@ rm(remove_1, remove_2, remove, remove_ids)
 ```
 
 ```{r find number excluded for incomplete meds, include = FALSE}
-# set working directory
-setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/")
-
 a <- read_sav("Complete CardiffCogs 2022.sav")
 
 a <- a[a$Study_ID %in% geno$V1, ] # 
@@ -428,8 +428,6 @@ remove(a, b, remove, remove_ids, geno)
 
 
 ```{r load pypgx pgx data, include=FALSE}
-# set working directory
-setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/")
 
 #### 1a2 ####
 pypgx_1a2 <-  read_delim("pgx/pypgx/cyp1a2.tsv",delim="\t", col_names = c("Study_ID", "Genotype", "Phenotype", "Haplotype1", "Haplotype2", "AlternativePhase", "VariantData", "CNV")) %>%
@@ -639,9 +637,6 @@ colnames(all_pgx) <- c("Study_ID", "CYP1A2_AS", "CYP2D6_AS",  "CYP2C9_AS", "CYP2
 
 
 ```{r initial pcs, include=FALSE}
-# set working directory
-setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/")
-
 # load in genetic principal components
 pca <- read.table("COGS.allchr.eigenvec",header=F)
 
@@ -652,7 +647,8 @@ colnames(pca) <- c( "Study_ID", "PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7",
 ```
 
 
-```{r load PGS, include=FALSE}
+```{r prs sz, include=FALSE}
+
 # load schizophrenia PGS 
 setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/prs/sz/cs_prs/")
 
@@ -663,6 +659,9 @@ list_file <- list.files(pattern = "*.profile") %>%
 # sum across chromosomes
 prs_cs_sz <- analyze(list_file)
 colnames(prs_cs_sz) <- c("Study_ID", "SZ_PRScs")
+```
+
+```{r prs int, include=FALSE}
 
 # load intelligence PGS
 setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/prs/intelligence/")
@@ -675,7 +674,11 @@ list_file <- list.files(pattern = "*.profile") %>%
 prs_cs_int <- analyze(list_file)
 colnames(prs_cs_int) <- c("Study_ID", "Int_PRScs")
 
-# load educational attainment PGS 
+```
+
+
+```{r educational attainment}
+# load schizophrenia PGS 
 setwd(dir = "D:/siobh/Documents/Uni/PhD/Y1/Symptoms Project/symptoms-cogs/prs/edu/")
 
 # find all .profile files
@@ -685,8 +688,6 @@ list_file <- list.files(pattern = "*.profile") %>%
 # sum across chromosomes
 prs_cs_ea <- analyze(list_file)
 colnames(prs_cs_ea) <- c("Study_ID", "EA_PRScs")
-
-
 ```
 
 
@@ -973,7 +974,7 @@ symptoms <- left_join(symptoms, others, by = "Study_ID")
 # select other covariates
 covariates <- dplyr::select(pheno, c("Study_ID",  "Sex", "Age_at_Interview", "AP_dose", "cpz_eq", "Antipsychotic", "antidepressant", "Mood_Stabiliser", "Benzodiazepine", "Anticholinergic", "other_medication", "Adherence", "GAS_Past_Week", "Pt_Highest_Educn", "NARTIQ"
                                      ))
-#### preparng medication variables ####
+#### preparing medication variables ####
 # select columns for coding medication variables
 meds <- dplyr::select(pheno, c("Study_ID", "Antipsychotic", "antidepressant", "Mood_Stabiliser", "Benzodiazepine", "Anticholinergic", "other_medication", "Current_smoking"))
 
@@ -1014,20 +1015,54 @@ anti_p <- dplyr::select(anti, c("Study_ID", "antichol_present"))
 # create antipsychotic polypharmacy variable
 pp <- dplyr::select(pheno, c("Study_ID", "Antipsychotic", "antidepressant", "Mood_Stabiliser", "Benzodiazepine", "Anticholinergic", "other_medication"))
 
-# need to remove 0s and treat as NAs
-pp$Benzodiazepine[pp$Benzodiazepine == 0] <- NA
-pp$other_medication[pp$other_medication == 0] <- NA
+# remove non antipsychotic drugs
+pp$Antipsychotic[!(pp$Antipsychotic %in% AP_codes)] <- NA
+pp$antidepressant[!(pp$antidepressant %in% AP_codes)] <- NA
+pp$Mood_Stabiliser[!(pp$Mood_Stabiliser%in% AP_codes)] <- NA
+pp$Benzodiazepine[!(pp$Benzodiazepine %in% AP_codes)] <- NA
+pp$Anticholinergic[!(pp$Anticholinergic %in% AP_codes)] <- NA
+pp$other_medication[!(pp$other_medication %in% AP_codes)] <- NA
 
-# need to create new columns as some have antipsychotics in other columns
-# create app variable from antipsychotics being input into other drug categories:
-# antipsychotics are anything under 29 (not 17) or 87 
-pp <- pp %>%
-  mutate(app = rowSums((dplyr::select(., c(2:7)) <= 29 & dplyr::select(., c(2:7)) != 17) | dplyr::select(., c(2:7)) == 87, na.rm = TRUE))
+# get medication column names
+cols <- colnames(pp[-1])
 
-pp$ap_poly <- 0 
-pp$ap_poly[pp$app > 1] <- 1
+recode_vector <- c(
+  "1" = "Amisulpride",
+  "2" = "Aripiprazole",
+  "3" = "Chlorpromazine",
+  "4" = "Clozapine",
+  "5" = "Flupenthixol",
+  "6" = "Flupenthixol", 
+  "7" = "Fluphenazine",
+  "8" = "Fluphenazine",
+  "9" = "Haloperidol",
+  "10" = "Haloperidol",
+  "12" = "Olanzapine",
+  "15" = "Pimozide",
+  "16" = "Pipotiazine",
+  "20" = "Quetiapine",
+  "21" = "Risperidone",
+  "22" = "Risperidone",
+  "24" = "Sulpiride",
+  "26" = "Trifluoperazine",
+  "28" = "Zuclopenthixol",
+  "29" = "Zuclopenthixol",
+  "87" = "Paliperidone"
+)
 
-pp <- dplyr::select(pp, c("Study_ID", "ap_poly", "app"))
+# convert numbers to drug names
+pp_freq <- as.data.frame(recode_selected_codes(df = pp, recode_vector = recode_vector, columns_to_recode = cols))
+
+# create variable with all medication names per row in it, separated by commas, no duplicates, and in alphabetical order
+pp_freq <- pp_freq %>%
+  mutate(total = pmap_chr(dplyr::select(., -Study_ID), ~toString(sort(unique(na.omit(c(...)))))))
+
+# identify people on APP vs not APP by whether or not there is a comma in the variable
+pp_freq <- pp_freq %>%
+  mutate(ap_poly = case_when(grepl(",", total) ~ 1,
+                            !grepl(",", total) ~0))
+
+pp <- dplyr::select(pp_freq, c("Study_ID", "ap_poly"))
 
 # join new variables together
 covariates  <- left_join(covariates, dplyr::select(meds, c("Study_ID", "clozapine_current", "fluoxetine", "carbamazepine" ,"smoking")))
@@ -1120,7 +1155,7 @@ test_df_dim_std_c <- datawizard::standardise(x = filter(test_df_dim, clozapine_c
 
 ```
 
-# Medication and pharmacogenomic effects on cross-sectional symptom severity and cognitive ability in schizophrenia. {.tabset}
+# Medication and pharmacogenomic effects on cross-sectional symptom severity and cognitive ability in schizophrenia {.tabset}
 
 <br>
 **Siobhan K. Lock, Djenifer B. Kappel, Michael J. Owen, James T.R. Walters, Michael C. O'Donovan, <a href = "mailto: PardinasA@cardiff.ac.uk"> Antonio .F. Pardiñas, </a> and <a href = "mailto: LeggeSE8@cardiff.ac.uk"> Sophie E. Legge. </a>**
@@ -1156,7 +1191,7 @@ Beyond polygenic risk, variation in genes encoding proteins key to pharmacokinet
 
 ```{r fig 1, fig.cap= "Figure 1. The majority of CYP-mediated drug metabolism occurs hepatically. Pharmacogenomic variation can result in increased, decreased, or no change to enzyme activity. Increased enzyme activity leads to faster metabolism, resulting in a lower drug concentration. This can be expected to lead to its reduced effectiveness but also a reduced risk for toxicity and adverse drug reactions. Conversely, variation leading to reduced enzyme activity results in slower metabolism of enzyme substrates. This can result in higher drug concentrations that might result in increased effectiveness but also increased risk of toxicity. The exact consequences of pharmacogenomic variation depend on the enzyme, drug, and metabolite(s) in question; for example, effects might vary if the metabolite has the potential to cause side effects or if the administered drug is a prodrug."}
 
-knitr::include_graphics("figs/Figure 1.png")
+knitr::include_graphics("Writing/figs/fin1st.png")
 ```
 
 <br>
@@ -1213,7 +1248,7 @@ Linear regression models were used to test for associations between medication v
 
 The model was extended by including activity scores for CYP1A2, CYP2C9, CYP2C19, CYP2D6, and CYP3A5 to test their potential to mediate or moderate any associations in the total sample, and in the subgroup of participants prescribed clozapine (N = `r nrow(test_df_dim_std_c)`) separately. Note that analyses of the effects of the pharmacogenomic variables are adjusted for dose, clozapine use, and anticholinergic use. Finally, we performed a sensitivity analysis to test whether our pharmacogenomic models changed after controlling for concomitant medication or lifestyle factors that may influence enzyme function (“phenoconversion”^44^) as described in the **Supplementary Materials**. 
 
-This study followed the STrengthening the REporting of Genetic Association Studies reporting recommendations^45^ (STREGA), an extension of the STROBE Statement^46^. The checklist can be found <a href=figs/STREGA.pdf target="_blank">here</a>. 
+This study followed the STrengthening the REporting of Genetic Association Studies reporting recommendations^45^ (STREGA), an extension of the STROBE Statement^46^. The checklist can be found <a href=Writing/figs/STREGA.pdf target="_blank">here</a>. 
 
 <br>
 <br>
@@ -1291,7 +1326,7 @@ Four factor structures were fit to determine which best represented the data as 
 
 ```{r cfa 4 plot paper, fig.cap= "Figure 2. Factor structure from the confirmatory factor analysis of current schizophrenia phenotypes within the CardiffCOGS sample. Standardised loadings between latent factors (circles) and contributing phenotypes (rectangles) are reported on straight lines. Curved lines represent correlations between latent factors.  EXP, Diminished Expressivity; MAP, Reduced Motivation and Pleasure; HVLT, Hopkins Visual Learning Test; BVMT, Brief Visuospatial Memory Test-Revised; CPT, Continuous Performance Test."}
 
-knitr::include_graphics("figs/Figure 2.png")
+knitr::include_graphics("Writing/figs/Figure 2.png")
 
 
 ```
@@ -1754,7 +1789,6 @@ Adherence to current medication was measured on an ordinal scale as described be
 5)	Medication supervised and takes as prescribed.
 
 Responses were dichotomised due to low numbers of ratings in certain categories. Participants who missed doses every week, or more frequently (0-3) were assigned as non-adherent. Those who reported rarely missed doses, or were medication supervised (4-5) were assigned as adherent.
-
 <br>
 <br>
 
@@ -1843,6 +1877,8 @@ iv)	daily dose ~ intelligence PGS + education attainment PGS + Age + Sex + PC1:5
 
 <br>
 <br>
+<br>
+<br>
 
 ## <strong> Supplementary Notes - Results </strong> {.tabset}
 ### Sample Information {.tabset}
@@ -1850,15 +1886,15 @@ iv)	daily dose ~ intelligence PGS + education attainment PGS + Age + Sex + PC1:5
 ##### Ascertainment of sample size 
 
 ```{r SF 1 (Sample N), fig.align = 'centre',fig.cap= "Supplementary Figure 1. Diagram showing participant exclusion based on several criteria and ascertainment of the final sample."}
-knitr::include_graphics("figs/SF1.png")
+knitr::include_graphics("Writing/figs/SF1.png")
 ```
 
 <br>
 <br>
 
 
-#### Model Variables
-##### Model Variables in CardiffCOGS
+#### Key Variables
+##### Key Variables in CardiffCOGS
 ```{r ST 2 (Descriptive Statistics)}
 df_total <- test_df_dim %>%
    filter(if_all(c(Study_ID, positive, express, mandp, sad, cog, cpz_eq, Adherence_coded, clozapine_current, antichol_present, SZ_PRScs, Age_at_Interview, Sex, PC1, PC2, PC3, PC4, PC5), complete.cases))
@@ -1922,7 +1958,6 @@ kable(b, row.names = F, digits = T, caption = "Supplementary Table 2. Descriptiv
 ```
 
 <br>
-<br>
 
 #### Antipsychotic Use
 ##### Antipsychotic Use in CardiffCOGS
@@ -1963,41 +1998,50 @@ cols <- colnames(med_freq)
 med_freq$total <- rowSums(med_freq[, cols[-1]], na.rm = TRUE)
 
 recode_vector <- c(
-  "1" = "amisulpride",
-  "2" = "aripiprazole",
-  "3" = "chlorpromazine",
-  "4" = "clozapine",
-  "5" = "flupenthixol",
-  "6" = "flupenthixol", 
-  "7" = "fluphenazine",
-  "8" = "fluphenazine",
-  "9" = "haloperidol",
-  "10" = "haloperidol",
-  "12" = "olanzapine",
-  "15" = "pimozide",
-  "16" = "pipotiazine",
-  "20" = "quetiapine",
-  "21" = "risperidone",
-  "22" = "risperidone",
-  "24" = "sulpiride",
-  "26" = "trifluoperazine",
-  "28" = "zuclopenthixol",
-  "29" = "zuclopenthixol",
-  "87" = "paliperidone"
+  "1" = "Amisulpride",
+  "2" = "Aripiprazole",
+  "3" = "Chlorpromazine",
+  "4" = "Clozapine",
+  "5" = "Flupenthixol",
+  "6" = "Flupenthixol", 
+  "7" = "Fluphenazine",
+  "8" = "Fluphenazine",
+  "9" = "Haloperidol",
+  "10" = "Haloperidol",
+  "12" = "Olanzapine",
+  "15" = "Pimozide",
+  "16" = "Pipotiazine",
+  "20" = "Quetiapine",
+  "21" = "Risperidone",
+  "22" = "Risperidone",
+  "24" = "Sulpiride",
+  "26" = "Trifluoperazine",
+  "28" = "Zuclopenthixol",
+  "29" = "Zuclopenthixol",
+  "87" = "Paliperidone"
 )
 
 med_freq <- as.data.frame(recode_selected_codes(df = med_freq, recode_vector = recode_vector, columns_to_recode = "Var1"))
 
 med_df <- dplyr::select(med_freq, c("Var1", "total"))
-med_df <- med_df %>%
-    mutate(Var1 = str_to_sentence(Var1))
-colnames(med_df) <- c("Antipsychotic", "N")
 
-med_df$Administration <- c("Oral", "Oral", "Oral", "Oral", "Oral", "Depot", "Oral", "Depot", "Oral", "Depot", "Oral", "Oral", "Depot", "Oral", "Oral", "Depot", "Oral", "Oral", "Oral","Depot", "Depot")
+alt_df <- setDT(med_df)[, .(value=sum(total)) , by = Var1]
+alt_df <- alt_df[order(alt_df$Var1),]
 
-med_df <- med_df %>% dplyr::select(c("Antipsychotic", "Administration", "N"))
+alt_df$value[alt_df$value <5] <- "< 5"
+colnames(alt_df) <- c("Antipsychotic", "N")
 
-kable(med_df, row.names = F, digits = T, caption = "Supplementary Table 3. Frequency of currently used antipsychotics in the CardiffCOGS sample and their mode of administration.") %>% kable_styling(full_width = F)
+kable(alt_df, row.names = F, digits = T, caption = "Supplementary Table 3. Frequency of currently used antipsychotics in the CardiffCOGS sample .") %>% kable_styling(full_width = T)
+
+#med_df <- med_df %>%
+#    mutate(Var1 = str_to_sentence(Var1))
+#colnames(med_df) <- c("Antipsychotic", "N")
+
+#med_df$Administration <- c("Oral", "Oral", "Oral", "Oral", "Oral", "Depot", "Oral", "Depot", "Oral", "Depot", "Oral", "Oral", "Depot", "Oral", "Oral", "Depot", "Oral", "Oral", "Oral","Depot", "Depot")
+
+#med_df <- med_df %>% dplyr::select(c("Antipsychotic", "Administration", "N"))
+
+#kable(med_df, row.names = F, digits = T, caption = "Supplementary Table 3. Frequency of currently used antipsychotics in the CardiffCOGS sample and their mode of administration.") %>% kable_styling(full_width = F)
 
 rm(meds, aps, ads, mss, bzs, acs, ots, cols,  med_freq)
 ```
@@ -2018,7 +2062,7 @@ B_1a2 <- as.data.frame(table(star_cyp1a2$Haplotype2))
 freq_1a2 <- full_join(A_1a2, B_1a2, by = "Var1")
 freq_1a2$Total <- rowSums(freq_1a2[-1], na.rm = T)
 freq_1a2$Frequency <- round(freq_1a2$Total/sum(freq_1a2$Total), 3)
-freq_1a2$Gene <- "CYP1A2"
+freq_1a2$Gene <- "<i>CYP1A2</i>"
 
 freq_1a2 <- freq_1a2 %>% dplyr::select("Gene", "Var1", "Total", "Frequency")
 colnames(freq_1a2) <- c("Gene", "Star Allele", "Total", "Frequency")
@@ -2033,7 +2077,7 @@ B_2d6 <- as.data.frame(table(star_cyp2d6$Geno2))
 freq_2d6 <- full_join(A_2d6, B_2d6, by = "Var1")
 freq_2d6$Total <- rowSums(freq_2d6[-1], na.rm = T)
 freq_2d6$Frequency <- round(freq_2d6$Total/sum(freq_2d6$Total), 3)
-freq_2d6$Gene <- "CYP2D6"
+freq_2d6$Gene <- "<i>CYP2D6</i>"
 
 freq_2d6 <- freq_2d6 %>% dplyr::select("Gene", "Var1", "Total", "Frequency")
 
@@ -2049,7 +2093,7 @@ B_3a5 <- as.data.frame(table(star_cyp3a5$Geno2))
 freq_3a5 <- full_join(A_3a5, B_3a5, by = "Var1")
 freq_3a5$Total <- rowSums(freq_3a5[-1], na.rm = T)
 freq_3a5$Frequency <- round(freq_3a5$Total/sum(freq_3a5$Total), 3)
-freq_3a5$Gene <- "CYP3A5"
+freq_3a5$Gene <- "<i>CYP3A5</i>"
 
 freq_3a5 <- freq_3a5 %>% dplyr::select("Gene", "Var1", "Total", "Frequency")
 colnames(freq_3a5) <- c("Gene", "Star Allele", "Total", "Frequency")
@@ -2064,7 +2108,7 @@ B_2c19 <- as.data.frame(table(star_cyp2c19$Geno2))
 freq_2c19 <- full_join(A_2c19, B_2c19, by = "Var1")
 freq_2c19$Total <- rowSums(freq_2c19[-1], na.rm = T)
 freq_2c19$Frequency <- round(freq_2c19$Total/sum(freq_2c19$Total), 3)
-freq_2c19$Gene <- "CYP2C19"
+freq_2c19$Gene <- "<i>CYP2C19</i>"
 
 freq_2c19 <- freq_2c19 %>% dplyr::select("Gene", "Var1", "Total", "Frequency")
 colnames(freq_2c19) <- c("Gene", "Star Allele", "Total", "Frequency")
@@ -2079,7 +2123,7 @@ B_2c9 <- as.data.frame(table(star_cyp2c9$Geno2))
 freq_2c9 <- full_join(A_2c9, B_2c9, by = "Var1")
 freq_2c9$Total <- rowSums(freq_2c9[-1], na.rm = T)
 freq_2c9$Frequency <- round(freq_2c9$Total/sum(freq_2c9$Total), 3)
-freq_2c9$Gene <- "CYP2C9"
+freq_2c9$Gene <- "<i>CYP2C9</i>"
 
 freq_2c9 <- freq_2c9 %>% dplyr::select("Gene", "Var1", "Total", "Frequency")
 colnames(freq_2c9) <- c("Gene", "Star Allele", "Total", "Frequency")
@@ -2095,6 +2139,8 @@ all_freq %>%
 
 <br>
 <br>
+
+
 
 ### CFA 
 #### CFA Measures and Preliminary Analysis
@@ -2972,7 +3018,7 @@ extra %>%
 ##### CYP1A2
 ###### CYP1A2 and Cigarette Smoking
 
-We saw no significant interaction between the CYP1A2 activity score and cigarette use  (β = `r coefs8e$Estimate[16]`; 95%CI, `r round(confint(cog_pgx_pc)[16,1], 2)` to `r round(confint(cog_pgx_pc)[16,2], 2)`; *p* = `r format.pval(coefs8e$Pr...t..[16], 2)`). Cigarette smoking was inversely associated with cognition (β = `r coefs8e$Estimate[5]`; 95%CI, `r round(confint(cog_pgx_pc)[5,1], 2)` to `r round(confint(cog_pgx_pc)[5,2], 2)`; *p* = `r format.pval(coefs8e$Pr...t..[5], 2)`); however, the association between CYP1A2 activity and cognitive ability weakened (β = `r coefs8e$Estimate[4]`; 95%CI, `r round(confint(cog_pgx_pc)[4,1], 2)` to `r round(confint(cog_pgx_pc)[4,2], 2)`; *p* = `r format.pval(coefs8e$Pr...t..[4], 2)`). Finally, we observed no significant association between phenoconversion-corrected CYP1A2 activity scores and cognition (β = `r coefs8ei$Estimate[4]`; 95%CI, `r round(confint(cog_pgx_pcas)[4,1], 2)` to `r round(confint(cog_pgx_pcas)[4,2], 2)`; *p* = `r format.pval(coefs8ei$Pr...t..[4], 2)`). Full results are in **Supplementary Table 13**.
+We saw no significant interaction between the CYP1A2 activity score and cigarette use  (β = `r coefs8e$Estimate[17]`; 95%CI, `r round(confint(cog_pgx_pc)[17,1], 2)` to `r round(confint(cog_pgx_pc)[17,2], 2)`; *p* = `r format.pval(coefs8e$Pr...t..[17], 2)`). Cigarette smoking was inversely associated with cognition (β = `r coefs8e$Estimate[5]`; 95%CI, `r round(confint(cog_pgx_pc)[5,1], 2)` to `r round(confint(cog_pgx_pc)[5,2], 2)`; *p* = `r format.pval(coefs8e$Pr...t..[5], 2)`); however, the association between CYP1A2 activity and cognitive ability weakened (β = `r coefs8e$Estimate[4]`; 95%CI, `r round(confint(cog_pgx_pc)[4,1], 2)` to `r round(confint(cog_pgx_pc)[4,2], 2)`; *p* = `r format.pval(coefs8e$Pr...t..[4], 2)`). Finally, we observed no significant association between phenoconversion-corrected CYP1A2 activity scores and cognition (β = `r coefs8ei$Estimate[4]`; 95%CI, `r round(confint(cog_pgx_pcas)[4,1], 2)` to `r round(confint(cog_pgx_pcas)[4,2], 2)`; *p* = `r format.pval(coefs8ei$Pr...t..[4], 2)`). Full results are in **Supplementary Table 13**.
 
 The *p* value for the association between CYP1A2 activity score and cognition became larger after controlling for smoking status, suggesting that part of the variance in cognition explained by CYP1A2 is due to the inductive effect of cigarette smoking. However, information regarding patient smoking status was absent for just under 10% of the original subgroup (N = `r smo$Freq[3]`). The attenuation of the CYP1A2-cognition association could be explained in part by this loss of statistical power. We note that the negative association between cigarette smoking, and cognition is somewhat contrary to expectations. Cigarette smoke is a known CYP1A2 inducer, binding with aryl hydrocarbon receptors and resulting in increased enzyme activity^14^. However, chronic smoking is also robustly associated with cognitive impairment^15^. Therefore, smoking may be exerting dual, contradictory effects on cognition in our sample; a larger, inverse direct effect, and a more modest indirect, positive effect through induction of CYP1A2 activity. 
 
@@ -3091,6 +3137,8 @@ extra %>%
 
 ```
 
+<br>
+<br>
 <br>
 <br>
 
